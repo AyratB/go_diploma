@@ -7,20 +7,20 @@ import (
 
 type Gofermart struct {
 	repo    repositories.Repository
-	decoder *utils.Decoder
+	Decoder *utils.Decoder
 }
 
 func NewGofermart(repo repositories.Repository, decoder *utils.Decoder) *Gofermart {
 	return &Gofermart{
 		repo:    repo,
-		decoder: decoder,
+		Decoder: decoder,
 	}
 }
 
 func (g Gofermart) RegisterUser(login, password string) error {
-	return g.repo.RegisterUser(login, g.decoder.Encode(password))
+	return g.repo.RegisterUser(login, g.Decoder.Encode(password))
 }
 
 func (g Gofermart) LoginUser(login, password string) error {
-	return g.repo.LoginUser(login, g.decoder.Encode(password))
+	return g.repo.LoginUser(login, g.Decoder.Encode(password))
 }

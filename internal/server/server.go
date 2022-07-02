@@ -14,11 +14,11 @@ func Run(configs *utils.Config) (func() error, error) {
 	r := chi.NewRouter()
 
 	decoder := utils.NewDecoder()
-	//cookieHandler := middlewares.NewCookieHandler(decoder)
+	cookieHandler := middlewares.NewCookieHandler(decoder)
 
 	r.Use(middleware.RequestID)
 	r.Use(middlewares.GzipHandle)
-	//r.Use(cookieHandler.CookieHandler)
+	r.Use(cookieHandler.CookieHandler)
 	r.Use(middleware.StripSlashes)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)

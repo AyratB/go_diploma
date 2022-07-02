@@ -81,7 +81,10 @@ func (h Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO - После успешной регистрации автоматическая аутентификация пользователя
+	newCookie := h.getCookie(rr.Login)
+
+	http.SetCookie(w, newCookie)
+	r.AddCookie(newCookie)
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -124,9 +127,20 @@ func (h Handler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO - После успешной регистрации автоматическая аутентификация пользователя - добавить куки
+	newCookie := h.getCookie(rr.Login)
+
+	http.SetCookie(w, newCookie)
+	r.AddCookie(newCookie)
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h Handler) getCookie(userLogin string) *http.Cookie {
+	return &http.Cookie{
+		Name:  utils.CookieUserName,
+		Value: h.gm.Decoder.Encode(userLogin),
+		Path:  "/",
+	}
 }
 
 func (h Handler) LoadUserOrders(w http.ResponseWriter, r *http.Request) {
