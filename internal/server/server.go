@@ -13,7 +13,7 @@ func Run(configs *utils.Config) (func() error, error) {
 
 	r := chi.NewRouter()
 
-	//decoder := utils.NewDecoder()
+	decoder := utils.NewDecoder()
 	//cookieHandler := middlewares.NewCookieHandler(decoder)
 
 	r.Use(middleware.RequestID)
@@ -24,13 +24,14 @@ func Run(configs *utils.Config) (func() error, error) {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	handler, resourcesCloser, err := handlers.NewHandler(configs)
+	handler, resourcesCloser, err := handlers.NewHandler(configs, decoder)
 	if err != nil {
 		return resourcesCloser, err
 	}
 
 	r.Route("/", func(r chi.Router) {
 		r.Post("/api/user/register", handler.RegisterUser)
+
 		r.Post("/api/user/login", handler.LoginUser)
 		r.Post("/api/user/orders", handler.LoadUserOrders)
 		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
@@ -38,6 +39,7 @@ func Run(configs *utils.Config) (func() error, error) {
 		r.Get("/api/user/orders", handler.GetUserOrders)
 		r.Get("/api/user/balance", handler.GetUserBalance)
 		r.Get("/api/user/balance/withdrawals", handler.GetUserBalanceDecreases)
+		r.Get("/api/orders/{number}", handler.GetOrdersPoints)
 	})
 	return resourcesCloser, http.ListenAndServe(configs.RunAddress, r)
 }

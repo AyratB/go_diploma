@@ -18,11 +18,6 @@ func GetConfigs() *Config {
 	if len(config.RunAddress) == 0 {
 		flag.StringVar(&config.RunAddress, "a", "localhost:8080", "server run address")
 	}
-	//config.BaseURL = os.Getenv("BASE_URL")
-	//if len(config.BaseURL) == 0 {
-	//	flag.StringVar(&config.BaseURL, "b", "http://localhost:8080", "base url")
-	//}
-
 	config.DatabaseURI = os.Getenv("DATABASE_URI")
 	if len(config.DatabaseURI) == 0 {
 		flag.StringVar(&config.DatabaseURI, "d", "", "db storage path")
