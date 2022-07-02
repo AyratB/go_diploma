@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/AyratB/go_diploma/internal/handlers"
+	"github.com/AyratB/go_diploma/internal/middlewares"
 	"github.com/AyratB/go_diploma/internal/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -16,7 +17,7 @@ func Run(configs *utils.Config) (func() error, error) {
 	//cookieHandler := middlewares.NewCookieHandler(decoder)
 
 	r.Use(middleware.RequestID)
-	//r.Use(middlewares.GzipHandle)
+	r.Use(middlewares.GzipHandle)
 	//r.Use(cookieHandler.CookieHandler)
 	r.Use(middleware.StripSlashes)
 	r.Use(middleware.RealIP)
