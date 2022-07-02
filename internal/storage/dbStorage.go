@@ -3,6 +3,10 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"github.com/AyratB/go_diploma/internal/customerrors"
+	"github.com/jackc/pgerrcode"
+	"github.com/lib/pq"
 	"time"
 )
 
@@ -40,11 +44,12 @@ func (d *DBStorage) initTables() error {
 	defer cancel()
 
 	initQuery := `
--- 		CREATE TABLE IF NOT EXISTS users (
---     		id 				SERIAL PRIMARY KEY,
---     		guid        	text NOT NULL
--- 		);
--- 		
+ 		CREATE TABLE IF NOT EXISTS users (
+     		id 				SERIAL 	PRIMARY KEY,
+     		login        	text 	NOT NULL UNIQUE,
+     		password 		text 	NOT NULL
+ 		);
+ 		
 -- 		CREATE TABLE IF NOT EXISTS user_urls (
 --     		id 				SERIAL PRIMARY KEY,
 --     		original_url 	TEXT NOT NULL,
@@ -58,6 +63,29 @@ func (d *DBStorage) initTables() error {
 	`
 	if _, err := d.DB.ExecContext(ctx, initQuery); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (d *DBStorage) RegisterUser(login, password string) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	result, err := d.DB.ExecContext(ctx,
+		"INSERT INTO users (login, password) VALUES ($1, $2)", login, password)
+	if err != nil {
+		if err, ok := err.(*pq.Error); ok && err.Code == pgerrcode.UniqueViolation {
+			return customerrors.ErrDuplicateUserLogin
+		}
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
 	}
 	return nil
 }
