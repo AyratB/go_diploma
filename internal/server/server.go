@@ -31,8 +31,9 @@ func Run(configs *utils.Config) (func() error, error) {
 
 	r.Route("/", func(r chi.Router) {
 		r.Post("/api/user/register", handler.RegisterUser)
-
 		r.Post("/api/user/login", handler.LoginUser)
+
+		// эти запросы должны быть закрыты для неавторизованных пользователей
 		r.Post("/api/user/orders", handler.LoadUserOrders)
 		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
 

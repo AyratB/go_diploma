@@ -89,3 +89,22 @@ func (d *DBStorage) RegisterUser(login, password string) error {
 	}
 	return nil
 }
+
+func (d *DBStorage) LoginUser(login, password string) error {
+
+	var isUserExist bool
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := d.DB.
+		QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 from users WHERE login = $1 AND password = $2)", login, password).
+		Scan(&isUserExist)
+	if err != nil {
+		return err
+	}
+	if !isUserExist {
+		return customerrors.ErrNoUserByLoginAndPassword
+	}
+	return nil
+}

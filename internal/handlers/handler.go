@@ -37,7 +37,7 @@ func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func()
 	}, repo.CloseResources, nil
 }
 
-type registerRequest struct {
+type registerOrLoginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
@@ -51,11 +51,11 @@ func (h Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	b, err := io.ReadAll(r.Body)
 
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	rr := registerRequest{}
+	rr := registerOrLoginRequest{}
 
 	if err := json.Unmarshal(b, &rr); err != nil {
 		http.Error(w, "Incorrect body JSON format", http.StatusBadRequest)
@@ -91,6 +91,42 @@ func (h Handler) LoginUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only POST requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rr := registerOrLoginRequest{}
+
+	if err := json.Unmarshal(b, &rr); err != nil {
+		http.Error(w, "Incorrect body JSON format", http.StatusBadRequest)
+		return
+	}
+	if len(rr.Login) == 0 {
+		http.Error(w, "Login can not be empty", http.StatusBadRequest)
+		return
+	}
+	if len(rr.Password) == 0 {
+		http.Error(w, "Password can not be empty", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+
+	if err = h.gm.LoginUser(rr.Login, rr.Password); err != nil {
+		if errors.Is(err, customerrors.ErrNoUserByLoginAndPassword) {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// TODO - После успешной регистрации автоматическая аутентификация пользователя - добавить куки
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h Handler) LoadUserOrders(w http.ResponseWriter, r *http.Request) {
