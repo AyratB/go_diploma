@@ -7,7 +7,10 @@ import (
 )
 
 func main() {
-	resourcesCloser, err := server.Run(utils.GetConfigs())
+
+	configs := utils.GetConfigs()
+
+	resourcesCloser, err := server.Run(configs)
 	defer func() {
 		if resourcesCloser != nil {
 			resourcesCloser()
@@ -15,7 +18,6 @@ func main() {
 	}()
 
 	if err != nil {
-		resourcesCloser()
 		log.Fatal(err)
 	}
 }
