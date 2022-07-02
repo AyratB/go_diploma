@@ -13,32 +13,53 @@ type Handler struct {
 	gm      *app.Gofermart
 }
 
-func (h Handler) RegisterUser(writer http.ResponseWriter, request *http.Request) {
-
+func (h Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST requests are allowed by this route!", http.StatusMethodNotAllowed)
+		return
+	}
 }
 
-func (h Handler) LoginUser(writer http.ResponseWriter, request *http.Request) {
-
+func (h Handler) LoginUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST requests are allowed by this route!", http.StatusMethodNotAllowed)
+		return
+	}
 }
 
-func (h Handler) LoadUserOrders(writer http.ResponseWriter, request *http.Request) {
-
+func (h Handler) LoadUserOrders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST requests are allowed by this route!", http.StatusMethodNotAllowed)
+		return
+	}
 }
 
-func (h Handler) DecreaseBalance(writer http.ResponseWriter, request *http.Request) {
-
+func (h Handler) DecreaseBalance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Only POST requests are allowed by this route!", http.StatusMethodNotAllowed)
+		return
+	}
 }
 
-func (h Handler) GetUserOrders(writer http.ResponseWriter, request *http.Request) {
-
+func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
+		return
+	}
 }
 
-func (h Handler) GetUserBalance(writer http.ResponseWriter, request *http.Request) {
-
+func (h Handler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
+		return
+	}
 }
 
-func (h Handler) GetUserBalanceDecreases(writer http.ResponseWriter, request *http.Request) {
-
+func (h Handler) GetUserBalanceDecreases(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
+		return
+	}
 }
 
 func NewHandler(configs *utils.Config) (*Handler, func() error, error) {
