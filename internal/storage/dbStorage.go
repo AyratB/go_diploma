@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/AyratB/go_diploma/internal/customerrors"
+	"github.com/AyratB/go_diploma/internal/utils"
 	"github.com/jackc/pgerrcode"
 	"github.com/lib/pq"
 	"time"
@@ -53,6 +54,9 @@ func (d *DBStorage) initTables() error {
      		id 				SERIAL PRIMARY KEY,
     		order_number	text   NOT NULL UNIQUE,
 			user_id			INTEGER NOT NULL,
+			status			text   NOT NULL,
+			accrual			INTEGER,
+			uploaded_at		TIMESTAMPTZ NOT NULL,
  			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
  		); 
 	`
@@ -148,7 +152,8 @@ func (d *DBStorage) SaveOrder(orderNumber, userLogin string) error {
 	}
 
 	result, err := d.DB.ExecContext(ctx,
-		"INSERT INTO orders (order_number, user_id) VALUES ($1, $2)", orderNumber, userID)
+		"INSERT INTO orders (order_number, user_id, status, accrual, uploaded_at) VALUES ($1, $2, $3, null, $4)",
+		orderNumber, userID, string(utils.New), time.Now())
 	if err != nil {
 		if err, ok := err.(*pq.Error); ok && err.Code == pgerrcode.UniqueViolation {
 			return customerrors.ErrDuplicateUserLogin
