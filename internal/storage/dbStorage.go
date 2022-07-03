@@ -124,9 +124,43 @@ WHERE o.order_number = $1`, orderNumber).Scan(&existingOrderUserLogin)
 		return err
 	}
 	if len(existingOrderUserLogin) != 0 {
-		return &customerrors.ErrOrderNumberAlreadyBusy{
+		return customerrors.ErrOrderNumberAlreadyBusy{
 			OrderUserLogin: existingOrderUserLogin,
 		}
+	}
+	return nil
+}
+
+func (d *DBStorage) SaveOrder(orderNumber, userLogin string) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var userID int
+	err := d.DB.
+		QueryRowContext(ctx, "SELECT id FROM users WHERE login = $1", userLogin).
+		Scan(&userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return customerrors.ErrInvalidCookie
+		}
+		return err
+	}
+
+	result, err := d.DB.ExecContext(ctx,
+		"INSERT INTO orders (order_number, user_id) VALUES ($1, $2)", orderNumber, userID)
+	if err != nil {
+		if err, ok := err.(*pq.Error); ok && err.Code == pgerrcode.UniqueViolation {
+			return customerrors.ErrDuplicateUserLogin
+		}
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
 	}
 	return nil
 }

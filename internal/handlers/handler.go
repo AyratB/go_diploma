@@ -169,26 +169,33 @@ func (h Handler) LoadUserOrders(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("content-type", "text/plain; charset=utf-8")
 
+	userLogin := getUserLogin(r)
+
 	err = h.gm.CheckOrderExists(string(orderNumber))
 	if err != nil {
-		if errors.As(err, customerrors.ErrOrderNumberAlreadyBusy{}) {
+		if errors.As(err, &customerrors.ErrOrderNumberAlreadyBusy{}) {
 			if castError, ok := err.(customerrors.ErrOrderNumberAlreadyBusy); ok {
-				if castError.OrderUserLogin == getUserLogin(r) { //200 — номер заказа уже был загружен этим пользователем;
+				if castError.OrderUserLogin == userLogin { //200 — номер заказа уже был загружен этим пользователем;
 					w.WriteHeader(http.StatusOK)
+					return
 				} else { // 409 — номер заказа уже был загружен другим пользователем;
 					http.Error(w, castError.Error(), http.StatusConflict)
+					return
 				}
 			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		return
 	}
 
-	err = h.gm.CheckOrderExists(string(orderNumber))
-
-	// TODO - save order
+	err = h.gm.SaveOrder(string(orderNumber), userLogin)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// 202 — новый номер заказа принят в обработку;
 	w.WriteHeader(http.StatusAccepted)

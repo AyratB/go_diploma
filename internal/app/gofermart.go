@@ -28,3 +28,7 @@ func (g Gofermart) LoginUser(login, password string) error {
 func (g Gofermart) CheckOrderExists(orderNumber string) error {
 	return g.repo.CheckOrderExists(orderNumber)
 }
+
+func (g Gofermart) SaveOrder(orderNumber, userLogin string) error {
+	return g.repo.SaveOrder(orderNumber, userLogin)
+}

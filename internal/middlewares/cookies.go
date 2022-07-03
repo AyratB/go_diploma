@@ -30,18 +30,23 @@ func (c *CookieHandler) CookieHandler(next http.Handler) http.Handler {
 			http.Error(w, "need to register or login", http.StatusUnauthorized)
 			return
 		} else {
+			if errors.Is(err, http.ErrNoCookie) {
+				next.ServeHTTP(w, r)
+			} else if err != nil {
+				http.Error(w, "Cookie crumbled", http.StatusInternalServerError)
+			} else {
+				decodedUserLogin, err := c.decoder.Decode(cookie.Value) // get user login
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusUnauthorized)
+				}
 
-			decoded, err := c.decoder.Decode(cookie.Value) // get user login
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusUnauthorized)
+				if len(decodedUserLogin) != 0 {
+					currentUserLogin = decodedUserLogin
+				}
+
+				ctx := context.WithValue(r.Context(), utils.KeyPrincipalID, currentUserLogin)
+				next.ServeHTTP(w, r.WithContext(ctx))
 			}
-
-			if len(decoded) != 0 {
-				currentUserLogin = decoded
-			}
-
-			ctx := context.WithValue(r.Context(), utils.KeyPrincipalID, currentUserLogin)
-			next.ServeHTTP(w, r.WithContext(ctx))
 		}
 	})
 }
