@@ -3,12 +3,14 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/AyratB/go_diploma/internal/app"
 	"github.com/AyratB/go_diploma/internal/customerrors"
 	"github.com/AyratB/go_diploma/internal/storage"
 	"github.com/AyratB/go_diploma/internal/utils"
 	"io"
 	"net/http"
+	"strconv"
 )
 
 type Handler struct {
@@ -148,6 +150,48 @@ func (h Handler) LoadUserOrders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only POST requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+
+	orderNumber, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	convertedOrderNumber, err := strconv.Atoi(string(orderNumber))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if !utils.ValidOrderNumber(convertedOrderNumber) {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	w.Header().Set("content-type", "text/plain; charset=utf-8")
+
+	err = h.gm.CheckOrderExists(string(orderNumber))
+	if err != nil {
+		if errors.As(err, customerrors.ErrOrderNumberAlreadyBusy{}) {
+			if castError, ok := err.(customerrors.ErrOrderNumberAlreadyBusy); ok {
+				if castError.OrderUserLogin == getUserLogin(r) { //200 — номер заказа уже был загружен этим пользователем;
+					w.WriteHeader(http.StatusOK)
+				} else { // 409 — номер заказа уже был загружен другим пользователем;
+					http.Error(w, castError.Error(), http.StatusConflict)
+				}
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	err = h.gm.CheckOrderExists(string(orderNumber))
+
+	// TODO - save order
+
+	// 202 — новый номер заказа принят в обработку;
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (h Handler) DecreaseBalance(w http.ResponseWriter, r *http.Request) {
@@ -183,4 +227,8 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+}
+
+func getUserLogin(r *http.Request) string {
+	return fmt.Sprint(r.Context().Value(utils.KeyPrincipalID))
 }

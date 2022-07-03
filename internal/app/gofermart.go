@@ -24,3 +24,7 @@ func (g Gofermart) RegisterUser(login, password string) error {
 func (g Gofermart) LoginUser(login, password string) error {
 	return g.repo.LoginUser(login, g.Decoder.Encode(password))
 }
+
+func (g Gofermart) CheckOrderExists(orderNumber string) error {
+	return g.repo.CheckOrderExists(orderNumber)
+}

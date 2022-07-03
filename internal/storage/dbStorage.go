@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/AyratB/go_diploma/internal/customerrors"
 	"github.com/jackc/pgerrcode"
@@ -12,8 +13,6 @@ import (
 
 type DBStorage struct {
 	DB *sql.DB
-
-	//shortUserURLs map[string]map[string]*entities.URLInfo // key - origin, Value - URLInfo
 }
 
 func NewDBStorage(dsn string) (*DBStorage, error) {
@@ -50,16 +49,12 @@ func (d *DBStorage) initTables() error {
      		password 		text 	NOT NULL
  		);
  		
--- 		CREATE TABLE IF NOT EXISTS user_urls (
---     		id 				SERIAL PRIMARY KEY,
---     		original_url 	TEXT NOT NULL,
--- 			shorten_url		TEXT NOT NULL,
--- 			user_id			INTEGER NOT NULL,
--- 			is_deleted		BOOLEAN DEFAULT false,
--- 			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
--- 		);
--- 
--- 		CREATE UNIQUE INDEX IF NOT EXISTS original_url_idx ON user_urls (original_url);
+ 		CREATE TABLE IF NOT EXISTS orders (
+     		id 				SERIAL PRIMARY KEY,
+    		order_number	text   NOT NULL UNIQUE,
+			user_id			INTEGER NOT NULL,
+ 			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+ 		); 
 	`
 	if _, err := d.DB.ExecContext(ctx, initQuery); err != nil {
 		return err
@@ -105,6 +100,33 @@ func (d *DBStorage) LoginUser(login, password string) error {
 	}
 	if !isUserExist {
 		return customerrors.ErrNoUserByLoginAndPassword
+	}
+	return nil
+}
+
+func (d *DBStorage) CheckOrderExists(orderNumber string) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var existingOrderUserLogin string
+
+	err := d.DB.QueryRowContext(ctx,
+		`SELECT u.login
+FROM orders as o
+JOIN users as u ON o.user_id = u.id
+WHERE o.order_number = $1`, orderNumber).Scan(&existingOrderUserLogin)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if len(existingOrderUserLogin) != 0 {
+		return &customerrors.ErrOrderNumberAlreadyBusy{
+			OrderUserLogin: existingOrderUserLogin,
+		}
 	}
 	return nil
 }
