@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type Handler struct {
@@ -208,11 +209,58 @@ func (h Handler) DecreaseBalance(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type GetUserOrdersResponse struct {
+	Number     string `json:"number"`
+	Status     string `json:"status"`
+	Accrual    int64  `json:"accrual,omitempty"`
+	UploadedAt string `json:"uploaded_at"`
+}
+
 func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+
+	userOrders, err := h.gm.GetUserOrders(getUserLogin(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if len(userOrders) == 0 {
+		http.Error(w, err.Error(), http.StatusNoContent)
+		return
+	}
+
+	responseOrders := make([]GetUserOrdersResponse, 0, len(userOrders))
+
+	for _, order := range userOrders {
+
+		responseOrder := GetUserOrdersResponse{
+			Number:     order.Number,
+			Status:     order.Status,
+			UploadedAt: order.UploadedAt.Format(time.RFC3339),
+		}
+
+		if order.Accrual.Valid {
+			responseOrder.Accrual = order.Accrual.Int64
+		}
+
+		responseOrders = append(responseOrders, responseOrder)
+
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	resp, err := json.Marshal(responseOrders)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(resp)
 }
 
 func (h Handler) GetUserBalance(w http.ResponseWriter, r *http.Request) {

@@ -1,8 +1,10 @@
 package app
 
 import (
+	"github.com/AyratB/go_diploma/internal/entities"
 	"github.com/AyratB/go_diploma/internal/repositories"
 	"github.com/AyratB/go_diploma/internal/utils"
+	"sort"
 )
 
 type Gofermart struct {
@@ -31,4 +33,17 @@ func (g Gofermart) CheckOrderExists(orderNumber string) error {
 
 func (g Gofermart) SaveOrder(orderNumber, userLogin string) error {
 	return g.repo.SaveOrder(orderNumber, userLogin)
+}
+
+func (g Gofermart) GetUserOrders(userLogin string) ([]entities.OrderEntity, error) {
+	orders, err := g.repo.GetUserOrders(userLogin)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Slice(orders, func(i, j int) bool {
+		return orders[i].UploadedAt.After(orders[j].UploadedAt)
+	})
+
+	return orders, err
 }

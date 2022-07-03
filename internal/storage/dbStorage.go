@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/AyratB/go_diploma/internal/customerrors"
+	"github.com/AyratB/go_diploma/internal/entities"
 	"github.com/AyratB/go_diploma/internal/utils"
 	"github.com/jackc/pgerrcode"
 	"github.com/lib/pq"
@@ -168,4 +169,38 @@ func (d *DBStorage) SaveOrder(orderNumber, userLogin string) error {
 		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
 	}
 	return nil
+}
+
+func (d *DBStorage) GetUserOrders(userLogin string) ([]entities.OrderEntity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	rows, err := d.DB.QueryContext(ctx,
+		`
+		SELECT o.order_number, o.status, o.accrual, o.uploaded_at 
+			FROM orders as o
+		JOIN users as u ON o.user_id = u.id
+		WHERE u.login = $1
+	`, userLogin)
+
+	defer rows.Close()
+
+	if err != nil {
+		return nil, err
+	}
+	if rows.Err() != nil {
+		return nil, err
+	}
+
+	orders := make([]entities.OrderEntity, 0)
+
+	for rows.Next() {
+		var order entities.OrderEntity
+		if err = rows.
+			Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt); err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+	return orders, nil
 }
