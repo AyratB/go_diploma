@@ -47,3 +47,7 @@ func (g Gofermart) GetUserOrders(userLogin string) ([]entities.OrderEntity, erro
 
 	return orders, err
 }
+
+func (g Gofermart) GetUserBalance(userLogin string) (*entities.UserBalance, error) {
+	return g.repo.GetUserBalance(userLogin)
+}

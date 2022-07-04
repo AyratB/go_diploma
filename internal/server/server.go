@@ -33,12 +33,12 @@ func Run(configs *utils.Config) (func() error, error) {
 		r.Post("/api/user/register", handler.RegisterUser)
 		r.Post("/api/user/login", handler.LoginUser)
 
-		// эти запросы должны быть закрыты для неавторизованных пользователей
+		// эти запросы закрыты для неавторизованных пользователей
 		r.Post("/api/user/orders", handler.LoadUserOrders)
-		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
-
 		r.Get("/api/user/orders", handler.GetUserOrders)
 		r.Get("/api/user/balance", handler.GetUserBalance)
+
+		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
 		r.Get("/api/user/balance/withdrawals", handler.GetUserBalanceDecreases)
 		r.Get("/api/orders/{number}", handler.GetOrdersPoints)
 	})

@@ -11,3 +11,8 @@ type OrderEntity struct {
 	Accrual    sql.NullInt64
 	UploadedAt time.Time
 }
+
+type UserBalance struct {
+	Current   float32
+	Withdrawn float32
+}

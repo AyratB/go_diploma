@@ -46,9 +46,11 @@ func (d *DBStorage) initTables() error {
 
 	initQuery := `
  		CREATE TABLE IF NOT EXISTS users (
-     		id 				SERIAL 	PRIMARY KEY,
-     		login        	text 	NOT NULL UNIQUE,
-     		password 		text 	NOT NULL
+     		id 					SERIAL 	PRIMARY KEY,
+     		login        		text 	NOT NULL UNIQUE,
+     		password 			text 	NOT NULL,
+     		current_balance 	NUMERIC(9,2) default 0,
+ 		    with_drawn_balance 	NUMERIC(9,2) default 0		                                 
  		);
  		
  		CREATE TABLE IF NOT EXISTS orders (
@@ -203,4 +205,26 @@ func (d *DBStorage) GetUserOrders(userLogin string) ([]entities.OrderEntity, err
 		orders = append(orders, order)
 	}
 	return orders, nil
+}
+
+func (d *DBStorage) GetUserBalance(userLogin string) (userBalance *entities.UserBalance, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	var current float32
+	var withdrawn float32
+
+	err = d.DB.
+		QueryRowContext(ctx, `SELECT current_balance, with_drawn_balance FROM users WHERE login = $1`, userLogin).
+		Scan(&current, &withdrawn)
+	if err != nil {
+		return
+	}
+
+	userBalance = &entities.UserBalance{
+		Current:   current,
+		Withdrawn: withdrawn,
+	}
+
+	return
 }

@@ -9,5 +9,6 @@ type Repository interface {
 	LoginUser(login, password string) error
 	CheckOrderExists(orderNumber string) error
 	SaveOrder(number, userLogin string) error
-	GetUserOrders(login string) ([]entities.OrderEntity, error)
+	GetUserOrders(userLogin string) ([]entities.OrderEntity, error)
+	GetUserBalance(userLogin string) (*entities.UserBalance, error)
 }

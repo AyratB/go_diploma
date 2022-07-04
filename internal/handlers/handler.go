@@ -252,7 +252,6 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("content-type", "application/json")
-	w.WriteHeader(http.StatusOK)
 
 	resp, err := json.Marshal(responseOrders)
 	if err != nil {
@@ -260,7 +259,13 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	w.Write(resp)
+}
+
+type GetUserBalanceResponse struct {
+	Current   float32 `json:"current"`
+	Withdrawn float32 `json:"withdrawn"`
 }
 
 func (h Handler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
@@ -268,6 +273,33 @@ func (h Handler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+
+	userBalance, err := h.gm.GetUserBalance(getUserLogin(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if userBalance == nil {
+		http.Error(w, "some error with users data", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+
+	response := GetUserBalanceResponse{
+		Current:   userBalance.Current,
+		Withdrawn: userBalance.Withdrawn,
+	}
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
 }
 
 func (h Handler) GetUserBalanceDecreases(w http.ResponseWriter, r *http.Request) {
