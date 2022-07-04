@@ -202,11 +202,64 @@ func (h Handler) LoadUserOrders(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+type decreaseRequest struct {
+	Order string  `json:"order"`
+	Sum   float32 `json:"sum"`
+}
+
 func (h Handler) DecreaseBalance(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	dr := decreaseRequest{}
+
+	if err := json.Unmarshal(body, &dr); err != nil {
+		http.Error(w, "Incorrect body JSON format", http.StatusBadRequest)
+		return
+	}
+	if len(dr.Order) == 0 {
+		http.Error(w, "order number can not be empty", http.StatusBadRequest)
+		return
+	}
+	convertedOrderNumber, err := strconv.Atoi(dr.Order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !utils.ValidOrderNumber(convertedOrderNumber) {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+	if dr.Sum <= 0 {
+		http.Error(w, "sum must be greater than 0", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("content-type", "application/json")
+
+	userLogin := getUserLogin(r)
+
+	err = h.gm.DecreaseBalance(userLogin, dr.Order, dr.Sum)
+
+	if err != nil {
+		if errors.As(err, &customerrors.ErrNoEnoughMoney{}) {
+			http.Error(w, err.Error(), http.StatusPaymentRequired)
+			return
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+
 }
 
 type GetUserOrdersResponse struct {

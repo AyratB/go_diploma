@@ -11,4 +11,5 @@ type Repository interface {
 	SaveOrder(number, userLogin string) error
 	GetUserOrders(userLogin string) ([]entities.OrderEntity, error)
 	GetUserBalance(userLogin string) (*entities.UserBalance, error)
+	DecreaseBalance(userLogin, order string, sum float32) error
 }

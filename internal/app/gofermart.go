@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/AyratB/go_diploma/internal/customerrors"
 	"github.com/AyratB/go_diploma/internal/entities"
 	"github.com/AyratB/go_diploma/internal/repositories"
 	"github.com/AyratB/go_diploma/internal/utils"
@@ -50,4 +51,17 @@ func (g Gofermart) GetUserOrders(userLogin string) ([]entities.OrderEntity, erro
 
 func (g Gofermart) GetUserBalance(userLogin string) (*entities.UserBalance, error) {
 	return g.repo.GetUserBalance(userLogin)
+}
+
+func (g Gofermart) DecreaseBalance(userLogin, order string, sum float32) error {
+
+	userData, err := g.repo.GetUserBalance(userLogin)
+	if err != nil {
+		return err
+	}
+	if sum > userData.Current {
+		return customerrors.ErrNoEnoughMoney{CurrentSum: userData.Current}
+	}
+
+	return g.repo.DecreaseBalance(userLogin, order, sum)
 }

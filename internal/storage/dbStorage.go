@@ -47,20 +47,27 @@ func (d *DBStorage) initTables() error {
 	initQuery := `
  		CREATE TABLE IF NOT EXISTS users (
      		id 					SERIAL 	PRIMARY KEY,
-     		login        		text 	NOT NULL UNIQUE,
-     		password 			text 	NOT NULL,
+     		login        		TEXT 	NOT NULL UNIQUE,
+     		password 			TEXT 	NOT NULL,
      		current_balance 	NUMERIC(9,2) default 0,
  		    with_drawn_balance 	NUMERIC(9,2) default 0		                                 
  		);
  		
  		CREATE TABLE IF NOT EXISTS orders (
-     		id 				SERIAL PRIMARY KEY,
-    		order_number	text   NOT NULL UNIQUE,
-			user_id			INTEGER NOT NULL,
-			status			text   NOT NULL,
-			accrual			INTEGER,
-			uploaded_at		TIMESTAMPTZ NOT NULL,
+     		id 					SERIAL PRIMARY KEY,
+    		order_number		TEXT   NOT NULL UNIQUE,
+			user_id				INTEGER NOT NULL,
+			status				TEXT   NOT NULL,
+			accrual				INTEGER,
+			uploaded_at			TIMESTAMPTZ NOT NULL,
  			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+ 		);
+
+		CREATE TABLE IF NOT EXISTS withdrawals (
+     		id 					SERIAL PRIMARY KEY,
+    		order_number		TEXT   NOT NULL,
+			processed_at		TIMESTAMPTZ NOT NULL
+ 			--FOREIGN KEY (order_number) REFERENCES orders (order_number) ON DELETE CASCADE
  		); 
 	`
 	if _, err := d.DB.ExecContext(ctx, initQuery); err != nil {
@@ -227,4 +234,37 @@ func (d *DBStorage) GetUserBalance(userLogin string) (userBalance *entities.User
 	}
 
 	return
+}
+
+func (d *DBStorage) DecreaseBalance(userLogin, orderNumber string, sum float32) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	updateResult, err := d.DB.ExecContext(ctx,
+		`UPDATE users 
+SET current_balance = previous.current_balance - $1,
+    with_drawn_balance = previous.with_drawn_balance + $1
+FROM (SELECT current_balance, with_drawn_balance FROM users WHERE login = $2) AS previous
+WHERE login = $2`, sum, userLogin)
+
+	rows, err := updateResult.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
+	}
+
+	insertResult, err := d.DB.ExecContext(ctx,
+		`INSERT INTO withdrawals (order_number, processed_at) 
+VALUES ($1, $2)`, orderNumber, time.Now())
+
+	rows, err = insertResult.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
+	}
+	return nil
 }
