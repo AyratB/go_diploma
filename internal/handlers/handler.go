@@ -342,7 +342,7 @@ func (h Handler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
 
 	response := GetUserBalanceResponse{
 		Current:   userBalance.Current,
-		Withdrawn: userBalance.Withdrawn,
+		Withdrawn: userBalance.SummaryWithdrawn,
 	}
 
 	resp, err := json.Marshal(response)
@@ -355,13 +355,53 @@ func (h Handler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
 	w.Write(resp)
 }
 
+type GetUserBalanceDecreases struct {
+	Order       string  `json:"order"`
+	Sum         float32 `json:"sum"`
+	ProcessedAt string  `json:"processed_at"`
+}
+
 func (h Handler) GetUserBalanceDecreases(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+
+	userWithdrawals, err := h.gm.GetUserWithdrawals(getUserLogin(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if len(userWithdrawals) == 0 {
+		http.Error(w, err.Error(), http.StatusNoContent)
+		return
+	}
+
+	userBalanceDecreases := make([]GetUserBalanceDecreases, 0, len(userWithdrawals))
+
+	for _, userWithdrawal := range userWithdrawals {
+		responseUserBalanceDecrease := GetUserBalanceDecreases{
+			Order:       userWithdrawal.Order,
+			Sum:         userWithdrawal.Sum,
+			ProcessedAt: userWithdrawal.ProcessedAt.Format(time.RFC3339),
+		}
+		userBalanceDecreases = append(userBalanceDecreases, responseUserBalanceDecrease)
+	}
+
+	w.Header().Set("content-type", "application/json")
+
+	resp, err := json.Marshal(userBalanceDecreases)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
 }
 
+// external API
 func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)

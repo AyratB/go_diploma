@@ -65,3 +65,17 @@ func (g Gofermart) DecreaseBalance(userLogin, order string, sum float32) error {
 
 	return g.repo.DecreaseBalance(userLogin, order, sum)
 }
+
+func (g Gofermart) GetUserWithdrawals(userLogin string) ([]entities.UserWithdrawal, error) {
+
+	userWithdrawals, err := g.repo.GetUserWithdrawals(userLogin)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Slice(userWithdrawals, func(i, j int) bool {
+		return userWithdrawals[i].ProcessedAt.After(userWithdrawals[j].ProcessedAt)
+	})
+
+	return userWithdrawals, err
+}

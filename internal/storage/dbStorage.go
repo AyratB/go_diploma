@@ -49,8 +49,7 @@ func (d *DBStorage) initTables() error {
      		id 					SERIAL 	PRIMARY KEY,
      		login        		TEXT 	NOT NULL UNIQUE,
      		password 			TEXT 	NOT NULL,
-     		current_balance 	NUMERIC(9,2) default 0,
- 		    with_drawn_balance 	NUMERIC(9,2) default 0		                                 
+     		current_balance 	NUMERIC(9,2) default 0	                                 
  		);
  		
  		CREATE TABLE IF NOT EXISTS orders (
@@ -64,10 +63,12 @@ func (d *DBStorage) initTables() error {
  		);
 
 		CREATE TABLE IF NOT EXISTS withdrawals (
-     		id 					SERIAL PRIMARY KEY,
-    		order_number		TEXT   NOT NULL,
-			processed_at		TIMESTAMPTZ NOT NULL
- 			--FOREIGN KEY (order_number) REFERENCES orders (order_number) ON DELETE CASCADE
+     		id 						SERIAL PRIMARY KEY,
+    		order_number			TEXT   NOT NULL,
+			processed_at			TIMESTAMPTZ NOT NULL,
+			user_id					INTEGER NOT NULL,
+			with_drawn_operation 	NUMERIC(9,2) default 0,
+			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
  		); 
 	`
 	if _, err := d.DB.ExecContext(ctx, initQuery); err != nil {
@@ -222,15 +223,20 @@ func (d *DBStorage) GetUserBalance(userLogin string) (userBalance *entities.User
 	var withdrawn float32
 
 	err = d.DB.
-		QueryRowContext(ctx, `SELECT current_balance, with_drawn_balance FROM users WHERE login = $1`, userLogin).
+		QueryRowContext(ctx, `
+SELECT u.current_balance, SUM(COALESCE( w.with_drawn_operation, 0 )) as with_drawn_balance 
+FROM users as u
+LEFT JOIN withdrawals as w ON w.user_id = u.id
+WHERE u.login = $1
+GROUP BY u.id`, userLogin).
 		Scan(&current, &withdrawn)
 	if err != nil {
 		return
 	}
 
 	userBalance = &entities.UserBalance{
-		Current:   current,
-		Withdrawn: withdrawn,
+		Current:          current,
+		SummaryWithdrawn: withdrawn,
 	}
 
 	return
@@ -242,9 +248,7 @@ func (d *DBStorage) DecreaseBalance(userLogin, orderNumber string, sum float32) 
 
 	updateResult, err := d.DB.ExecContext(ctx,
 		`UPDATE users 
-SET current_balance = previous.current_balance - $1,
-    with_drawn_balance = previous.with_drawn_balance + $1
-FROM (SELECT current_balance, with_drawn_balance FROM users WHERE login = $2) AS previous
+SET current_balance = current_balance - $1
 WHERE login = $2`, sum, userLogin)
 
 	rows, err := updateResult.RowsAffected()
@@ -254,10 +258,20 @@ WHERE login = $2`, sum, userLogin)
 	if rows != 1 {
 		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
 	}
+	var userID int
+
+	if err = d.DB.
+		QueryRowContext(ctx, "SELECT id FROM users WHERE login = $1", userLogin).
+		Scan(&userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return customerrors.ErrInvalidCookie
+		}
+		return err
+	}
 
 	insertResult, err := d.DB.ExecContext(ctx,
-		`INSERT INTO withdrawals (order_number, processed_at) 
-VALUES ($1, $2)`, orderNumber, time.Now())
+		`INSERT INTO withdrawals (order_number, processed_at, user_id, with_drawn_operation) 
+VALUES ($1, $2, $3, $4)`, orderNumber, time.Now(), userID, sum)
 
 	rows, err = insertResult.RowsAffected()
 	if err != nil {
@@ -267,4 +281,38 @@ VALUES ($1, $2)`, orderNumber, time.Now())
 		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
 	}
 	return nil
+}
+
+func (d *DBStorage) GetUserWithdrawals(userLogin string) ([]entities.UserWithdrawal, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	rows, err := d.DB.QueryContext(ctx,
+		`
+		SELECT w.order_number, w.processed_at, w.with_drawn_operation
+			FROM withdrawals as w
+		JOIN users as u ON w.user_id = u.id
+		WHERE u.login = $1
+	`, userLogin)
+
+	defer rows.Close()
+
+	if err != nil {
+		return nil, err
+	}
+	if rows.Err() != nil {
+		return nil, err
+	}
+
+	userWithdrawals := make([]entities.UserWithdrawal, 0)
+
+	for rows.Next() {
+		var userWithdrawal entities.UserWithdrawal
+		if err = rows.
+			Scan(&userWithdrawal.Order, &userWithdrawal.ProcessedAt, &userWithdrawal.Sum); err != nil {
+			return nil, err
+		}
+		userWithdrawals = append(userWithdrawals, userWithdrawal)
+	}
+	return userWithdrawals, nil
 }

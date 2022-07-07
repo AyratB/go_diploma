@@ -13,6 +13,12 @@ type OrderEntity struct {
 }
 
 type UserBalance struct {
-	Current   float32
-	Withdrawn float32
+	Current          float32
+	SummaryWithdrawn float32
+}
+
+type UserWithdrawal struct {
+	Order       string
+	Sum         float32
+	ProcessedAt time.Time
 }

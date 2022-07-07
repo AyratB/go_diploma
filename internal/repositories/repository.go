@@ -12,4 +12,5 @@ type Repository interface {
 	GetUserOrders(userLogin string) ([]entities.OrderEntity, error)
 	GetUserBalance(userLogin string) (*entities.UserBalance, error)
 	DecreaseBalance(userLogin, order string, sum float32) error
+	GetUserWithdrawals(login string) ([]entities.UserWithdrawal, error)
 }
