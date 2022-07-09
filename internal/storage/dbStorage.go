@@ -271,7 +271,9 @@ func (d *DBStorage) DecreaseBalance(userLogin, orderNumber string, sum float32) 
 	insertResult, err := d.DB.ExecContext(ctx,
 		`INSERT INTO withdrawals (order_number, processed_at, user_id, with_drawn_operation) 
 VALUES ($1, $2, $3, $4)`, orderNumber, time.Now(), userID, sum)
-
+	if err != nil {
+		return err
+	}
 	rows, err := insertResult.RowsAffected()
 	if err != nil {
 		return err
@@ -326,7 +328,9 @@ func (d *DBStorage) UpdateOrder(number, status string, accrual *float64) error {
 	SET status = $1,
 	 	accrual = $2
 	WHERE order_number = $3`, status, accrual, number)
-
+	if err != nil {
+		return err
+	}
 	rows, err := updateResult.RowsAffected()
 	if err != nil {
 		return err

@@ -19,7 +19,7 @@ import (
 type Handler struct {
 	configs            *utils.Config
 	gm                 *app.Gofermart
-	externalHttpClient http.Client
+	externalHTTPClient http.Client
 }
 
 func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func() error, error) {
@@ -40,7 +40,7 @@ func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func()
 	return &Handler{
 		gm:                 app.NewGofermart(repo, decoder),
 		configs:            configs,
-		externalHttpClient: http.Client{},
+		externalHTTPClient: http.Client{},
 	}, repo.CloseResources, nil
 }
 
@@ -167,9 +167,8 @@ func (h Handler) LoadUserOrders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	if !utils.ValidOrderNumber(convertedOrderNumber) {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		http.Error(w, "not valid order number", http.StatusUnprocessableEntity)
 		return
 	}
 	w.Header().Set("content-type", "text/plain; charset=utf-8")
@@ -284,9 +283,8 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	if len(userOrders) == 0 {
-		http.Error(w, err.Error(), http.StatusNoContent)
+		http.Error(w, "no users order", http.StatusNoContent)
 		return
 	}
 
@@ -376,9 +374,8 @@ func (h Handler) GetUserBalanceDecreases(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	if len(userWithdrawals) == 0 {
-		http.Error(w, err.Error(), http.StatusNoContent)
+		http.Error(w, "no user withdrawals", http.StatusNoContent)
 		return
 	}
 
@@ -425,7 +422,7 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !utils.ValidOrderNumber(convertedOrderNumber) {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		http.Error(w, "not valid order number", http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -452,7 +449,7 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := externalApiFinishResponse{
+	response := externalAPIFinishResponse{
 		Order: orderNumber,
 	}
 
@@ -468,7 +465,7 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		// h.configs.AccrualSystemAddress = "http://localhost:8080"
 
 		url := fmt.Sprintf(`%s/api/orders/%s`, h.configs.AccrualSystemAddress, orderNumber)
-		externalResp, err := h.externalHttpClient.Get(url)
+		externalResp, err := h.externalHTTPClient.Get(url)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -482,7 +479,7 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			exrr := externalApiResponse{}
+			exrr := externalAPIResponse{}
 
 			if err = json.Unmarshal(b, &exrr); err != nil {
 				http.Error(w, "Incorrect external body JSON format", http.StatusBadRequest)
@@ -515,7 +512,7 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "No more than N requests per minute allowed", http.StatusTooManyRequests)
 			return
 		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
 	}
@@ -532,16 +529,16 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 	w.Write(resp)
 }
 
-type externalApiResponse struct {
+type externalAPIResponse struct {
 	Order   string   `json:"order"`
 	Status  string   `json:"status"`
 	Accrual *float64 `json:"accrual"`
 }
 
-type externalApiFinishResponse struct {
+type externalAPIFinishResponse struct {
 	Order   string   `json:"order"`
 	Status  string   `json:"status"`
-	Accrual *float64 `json:"accrual, omitempty"`
+	Accrual *float64 `json:"accrual,omitempty"`
 }
 
 func getUserLogin(r *http.Request) string {
