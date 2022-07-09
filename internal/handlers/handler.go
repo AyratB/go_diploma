@@ -238,7 +238,7 @@ func (h Handler) DecreaseBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !utils.ValidOrderNumber(convertedOrderNumber) {
-		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		http.Error(w, "no valid number", http.StatusUnprocessableEntity)
 		return
 	}
 	if dr.Sum <= 0 {
