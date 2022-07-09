@@ -192,14 +192,14 @@ func (d *DBStorage) GetUserOrders(userLogin string) ([]entities.OrderEntity, err
 		WHERE u.login = $1
 	`, userLogin)
 
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
 	if rows.Err() != nil {
 		return nil, err
 	}
+
+	defer rows.Close()
 
 	orders := make([]entities.OrderEntity, 0)
 
@@ -296,14 +296,14 @@ func (d *DBStorage) GetUserWithdrawals(userLogin string) ([]entities.UserWithdra
 		WHERE u.login = $1
 	`, userLogin)
 
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
 	if rows.Err() != nil {
 		return nil, err
 	}
+
+	defer rows.Close()
 
 	userWithdrawals := make([]entities.UserWithdrawal, 0)
 
