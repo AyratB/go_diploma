@@ -39,7 +39,8 @@ func Run(configs *utils.Config) (func() error, error) {
 		r.Get("/api/user/orders", handler.GetUserOrders)
 		r.Get("/api/user/balance", handler.GetUserBalance)
 		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
-		r.Get("/api/user/balance/withdrawals", handler.GetUserBalanceDecreases)
+		//r.Get("/api/user/balance/withdrawals", handler.GetUserBalanceDecreases)
+		r.Get("/api/user/withdrawals", handler.GetUserBalanceDecreases)
 	})
 	return resourcesCloser, http.ListenAndServe(configs.RunAddress, r)
 }
