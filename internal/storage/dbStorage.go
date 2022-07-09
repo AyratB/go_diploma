@@ -48,8 +48,7 @@ func (d *DBStorage) initTables() error {
  		CREATE TABLE IF NOT EXISTS users (
      		id 					SERIAL 	PRIMARY KEY,
      		login        		TEXT 	NOT NULL UNIQUE,
-     		password 			TEXT 	NOT NULL,
-     		current_balance 	NUMERIC(9,2) default 0	                                 
+     		password 			TEXT 	NOT NULL                                
  		);
  		
  		CREATE TABLE IF NOT EXISTS orders (
@@ -57,7 +56,7 @@ func (d *DBStorage) initTables() error {
     		order_number		TEXT   NOT NULL UNIQUE,
 			user_id				INTEGER NOT NULL,
 			status				TEXT   NOT NULL,
-			accrual				INTEGER,
+			accrual				NUMERIC(9,2),
 			uploaded_at			TIMESTAMPTZ NOT NULL,
  			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
  		);
@@ -67,7 +66,7 @@ func (d *DBStorage) initTables() error {
     		order_number			TEXT   NOT NULL,
 			processed_at			TIMESTAMPTZ NOT NULL,
 			user_id					INTEGER NOT NULL,
-			with_drawn_operation 	NUMERIC(9,2) default 0,
+			with_drawn_operation 	NUMERIC(9,2),
 			FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
  		); 
 	`
@@ -219,24 +218,36 @@ func (d *DBStorage) GetUserBalance(userLogin string) (userBalance *entities.User
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	var current float32
-	var withdrawn float32
+	var userwithdrawls float32
 
 	err = d.DB.
 		QueryRowContext(ctx, `
-SELECT u.current_balance, SUM(COALESCE( w.with_drawn_operation, 0 )) as with_drawn_balance 
+SELECT SUM(COALESCE( w.with_drawn_operation, 0 ))
 FROM users as u
 LEFT JOIN withdrawals as w ON w.user_id = u.id
 WHERE u.login = $1
 GROUP BY u.id`, userLogin).
-		Scan(&current, &withdrawn)
+		Scan(&userwithdrawls)
+	if err != nil {
+		return
+	}
+
+	var userAccruals float32
+	err = d.DB.
+		QueryRowContext(ctx, `
+SELECT SUM(COALESCE( o.accrual, 0 ))
+FROM users as u
+LEFT JOIN orders as o ON o.user_id = u.id
+WHERE u.login = $1
+GROUP BY u.id`, userLogin).
+		Scan(&userAccruals)
 	if err != nil {
 		return
 	}
 
 	userBalance = &entities.UserBalance{
-		Current:          current,
-		SummaryWithdrawn: withdrawn,
+		Current:          userAccruals - userwithdrawls,
+		SummaryWithdrawn: userwithdrawls,
 	}
 
 	return
@@ -246,21 +257,9 @@ func (d *DBStorage) DecreaseBalance(userLogin, orderNumber string, sum float32) 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	updateResult, err := d.DB.ExecContext(ctx,
-		`UPDATE users 
-SET current_balance = current_balance - $1
-WHERE login = $2`, sum, userLogin)
-
-	rows, err := updateResult.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows != 1 {
-		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
-	}
 	var userID int
 
-	if err = d.DB.
+	if err := d.DB.
 		QueryRowContext(ctx, "SELECT id FROM users WHERE login = $1", userLogin).
 		Scan(&userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -273,7 +272,7 @@ WHERE login = $2`, sum, userLogin)
 		`INSERT INTO withdrawals (order_number, processed_at, user_id, with_drawn_operation) 
 VALUES ($1, $2, $3, $4)`, orderNumber, time.Now(), userID, sum)
 
-	rows, err = insertResult.RowsAffected()
+	rows, err := insertResult.RowsAffected()
 	if err != nil {
 		return err
 	}
@@ -315,4 +314,25 @@ func (d *DBStorage) GetUserWithdrawals(userLogin string) ([]entities.UserWithdra
 		userWithdrawals = append(userWithdrawals, userWithdrawal)
 	}
 	return userWithdrawals, nil
+}
+
+func (d *DBStorage) UpdateOrder(number, status string, accrual *float64) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	updateResult, err := d.DB.ExecContext(ctx,
+		`UPDATE orders
+	SET status = $1,
+	 	accrual = $2
+	WHERE order_number = $3`, status, accrual, number)
+
+	rows, err := updateResult.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return fmt.Errorf("expected to affect 1 row, affected %d", rows)
+	}
+	return nil
 }

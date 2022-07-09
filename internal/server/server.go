@@ -32,6 +32,7 @@ func Run(configs *utils.Config) (func() error, error) {
 	r.Route("/", func(r chi.Router) {
 		r.Post("/api/user/register", handler.RegisterUser)
 		r.Post("/api/user/login", handler.LoginUser)
+		r.Get("/api/orders/{number}", handler.GetOrdersPoints)
 
 		// эти запросы закрыты для неавторизованных пользователей
 		r.Post("/api/user/orders", handler.LoadUserOrders)
@@ -39,8 +40,6 @@ func Run(configs *utils.Config) (func() error, error) {
 		r.Get("/api/user/balance", handler.GetUserBalance)
 		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
 		r.Get("/api/user/balance/withdrawals", handler.GetUserBalanceDecreases)
-
-		r.Get("/api/orders/{number}", handler.GetOrdersPoints)
 	})
 	return resourcesCloser, http.ListenAndServe(configs.RunAddress, r)
 }

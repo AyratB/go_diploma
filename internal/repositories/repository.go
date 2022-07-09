@@ -5,12 +5,13 @@ import (
 )
 
 type Repository interface {
-	RegisterUser(login, password string) error
-	LoginUser(login, password string) error
+	RegisterUser(userLogin, password string) error
+	LoginUser(userLogin, password string) error
 	CheckOrderExists(orderNumber string) error
-	SaveOrder(number, userLogin string) error
+	SaveOrder(orderNumber, userLogin string) error
 	GetUserOrders(userLogin string) ([]entities.OrderEntity, error)
 	GetUserBalance(userLogin string) (*entities.UserBalance, error)
 	DecreaseBalance(userLogin, order string, sum float32) error
-	GetUserWithdrawals(login string) ([]entities.UserWithdrawal, error)
+	GetUserWithdrawals(userLogin string) ([]entities.UserWithdrawal, error)
+	UpdateOrder(number, status string, accrual *float64) error
 }

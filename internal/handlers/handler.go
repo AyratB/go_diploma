@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"github.com/AyratB/go_diploma/internal/app"
 	"github.com/AyratB/go_diploma/internal/customerrors"
+	"github.com/AyratB/go_diploma/internal/entities"
 	"github.com/AyratB/go_diploma/internal/storage"
 	"github.com/AyratB/go_diploma/internal/utils"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,19 +17,20 @@ import (
 )
 
 type Handler struct {
-	configs *utils.Config
-	gm      *app.Gofermart
+	configs            *utils.Config
+	gm                 *app.Gofermart
+	externalHttpClient http.Client
 }
 
 func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func() error, error) {
 
 	// TODO - comment only when local
-	//if len(configs.DatabaseURI) == 0 {
-	//	return nil, nil, errors.New("need Database URI")
-	//}
+	if len(configs.DatabaseURI) == 0 {
+		return nil, nil, errors.New("need Database URI")
+	}
 
 	// test local connection
-	configs.DatabaseURI = "postgres://postgres:test@localhost:5432/postgres?sslmode=disable"
+	// configs.DatabaseURI = "postgres://postgres:test@localhost:5432/postgres?sslmode=disable"
 
 	repo, err := storage.NewDBStorage(configs.DatabaseURI)
 	if err != nil {
@@ -35,8 +38,9 @@ func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func()
 	}
 
 	return &Handler{
-		gm:      app.NewGofermart(repo, decoder),
-		configs: configs,
+		gm:                 app.NewGofermart(repo, decoder),
+		configs:            configs,
+		externalHttpClient: http.Client{},
 	}, repo.CloseResources, nil
 }
 
@@ -263,10 +267,10 @@ func (h Handler) DecreaseBalance(w http.ResponseWriter, r *http.Request) {
 }
 
 type GetUserOrdersResponse struct {
-	Number     string `json:"number"`
-	Status     string `json:"status"`
-	Accrual    int64  `json:"accrual,omitempty"`
-	UploadedAt string `json:"uploaded_at"`
+	Number     string  `json:"number"`
+	Status     string  `json:"status"`
+	Accrual    float32 `json:"accrual,omitempty"`
+	UploadedAt string  `json:"uploaded_at"`
 }
 
 func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
@@ -297,7 +301,7 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if order.Accrual.Valid {
-			responseOrder.Accrual = order.Accrual.Int64
+			responseOrder.Accrual = float32(order.Accrual.Float64)
 		}
 
 		responseOrders = append(responseOrders, responseOrder)
@@ -407,6 +411,137 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+
+	var err error
+
+	orderNumber := chi.URLParam(r, "number")
+	if len(orderNumber) == 0 {
+		http.Error(w, "Need to set number", http.StatusBadRequest)
+		return
+	}
+	convertedOrderNumber, err := strconv.Atoi(orderNumber)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !utils.ValidOrderNumber(convertedOrderNumber) {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	// проверить, что этот номер есть в базе и не в окончательном статусе INVALID / PROCESSED
+	userOrders, err := h.gm.GetUserOrders(getUserLogin(r))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(userOrders) == 0 {
+		http.Error(w, "no orders for user", http.StatusInternalServerError)
+		return
+	}
+
+	var currentOrder *entities.OrderEntity
+	for _, userOrder := range userOrders {
+		if userOrder.Number == orderNumber {
+			currentOrder = &userOrder
+			break
+		}
+	}
+	if currentOrder == nil {
+		http.Error(w, "no orders for user with this order number", http.StatusInternalServerError)
+		return
+	}
+
+	response := externalApiFinishResponse{
+		Order: orderNumber,
+	}
+
+	// если уже обработано - что делаем?
+	if currentOrder.Status == string(utils.Invalid) || currentOrder.Status == string(utils.Processed) {
+		// возвращаем текущее состояние
+		response.Status = currentOrder.Status
+		if currentOrder.Accrual.Valid {
+			response.Accrual = &(currentOrder.Accrual.Float64)
+		}
+	} else { // дергаем внещний сервис
+		// TEST
+		// h.configs.AccrualSystemAddress = "http://localhost:8080"
+
+		url := fmt.Sprintf(`%s/api/orders/%s`, h.configs.AccrualSystemAddress, orderNumber)
+		externalResp, err := h.externalHttpClient.Get(url)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer externalResp.Body.Close()
+
+		if externalResp.StatusCode == http.StatusOK { // есть ответ от сервиса
+			b, err := io.ReadAll(externalResp.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			exrr := externalApiResponse{}
+
+			if err = json.Unmarshal(b, &exrr); err != nil {
+				http.Error(w, "Incorrect external body JSON format", http.StatusBadRequest)
+				return
+			} else {
+				if currentOrder.Status != exrr.Status {
+					response.Status = exrr.Status
+
+					var accr *float64
+					if exrr.Accrual != nil {
+						accr = exrr.Accrual
+						response.Accrual = exrr.Accrual
+					}
+
+					err = h.gm.UpdateOrder(orderNumber, exrr.Status, accr)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+				} else {
+					// возвращаем текущий
+					response.Status = currentOrder.Status
+					if currentOrder.Accrual.Valid {
+						response.Accrual = &(currentOrder.Accrual.Float64)
+					}
+				}
+			}
+
+		} else if externalResp.StatusCode == http.StatusTooManyRequests {
+			http.Error(w, "No more than N requests per minute allowed", http.StatusTooManyRequests)
+			return
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("content-type", "application/json")
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
+}
+
+type externalApiResponse struct {
+	Order   string   `json:"order"`
+	Status  string   `json:"status"`
+	Accrual *float64 `json:"accrual"`
+}
+
+type externalApiFinishResponse struct {
+	Order   string   `json:"order"`
+	Status  string   `json:"status"`
+	Accrual *float64 `json:"accrual, omitempty"`
 }
 
 func getUserLogin(r *http.Request) string {

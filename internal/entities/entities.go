@@ -8,7 +8,7 @@ import (
 type OrderEntity struct {
 	Number     string
 	Status     string
-	Accrual    sql.NullInt64
+	Accrual    sql.NullFloat64
 	UploadedAt time.Time
 }
 
