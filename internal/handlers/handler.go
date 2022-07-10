@@ -22,7 +22,7 @@ type Handler struct {
 	Configs            *utils.Config
 	gm                 *app.Gofermart
 	externalHTTPClient http.Client
-	HttpClient         *resty.Client
+	HTTPClient         *resty.Client
 	ProcessedOrders    chan entities.OrderQueueEntry
 	NoProcessedOrders  chan entities.OrderQueueEntry
 }
@@ -45,7 +45,7 @@ func NewHandler(ctx context.Context, configs *utils.Config, decoder *utils.Decod
 	return &Handler{
 		gm:                app.NewGofermart(repo, decoder),
 		Configs:           configs,
-		HttpClient:        resty.New(),
+		HTTPClient:        resty.New(),
 		ProcessedOrders:   repo.ProcessedOrders,
 		NoProcessedOrders: repo.NoProcessedOrders,
 	}, repo.CloseResources, nil
@@ -410,137 +410,6 @@ func (h Handler) GetUserBalanceDecreases(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 	w.Write(resp)
 }
-
-//// external API
-//func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
-//	if r.Method != http.MethodGet {
-//		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
-//		return
-//	}
-//	w.Header().Set("content-type", "application/json")
-//
-//	var err error
-//
-//	orderNumber := chi.URLParam(r, "number")
-//	if len(orderNumber) == 0 {
-//		http.Error(w, "Need to set number", http.StatusBadRequest)
-//		return
-//	}
-//	convertedOrderNumber, err := strconv.Atoi(orderNumber)
-//	if err != nil {
-//		http.Error(w, err.Error(), http.StatusBadRequest)
-//		return
-//	}
-//	if !utils.ValidOrderNumber(convertedOrderNumber) {
-//		http.Error(w, "not valid order number", http.StatusUnprocessableEntity)
-//		return
-//	}
-//
-//	// проверить, что этот номер есть в базе и не в окончательном статусе INVALID / PROCESSED
-//	userOrders, err := h.gm.GetUserOrders(getUserLogin(r))
-//	if err != nil {
-//		http.Error(w, err.Error(), http.StatusInternalServerError)
-//		return
-//	}
-//	if len(userOrders) == 0 {
-//		http.Error(w, "no orders for user", http.StatusInternalServerError)
-//		return
-//	}
-//
-//	var currentOrder *entities.OrderEntity
-//	for _, userOrder := range userOrders {
-//		if userOrder.Number == orderNumber {
-//			currentOrder = &userOrder
-//			break
-//		}
-//	}
-//	if currentOrder == nil {
-//		http.Error(w, "no orders for user with this order number", http.StatusInternalServerError)
-//		return
-//	}
-//
-//	response := externalAPIFinishResponse{
-//		Order: orderNumber,
-//	}
-//
-//	// если уже обработано - что делаем?
-//	if currentOrder.Status == string(utils.Invalid) || currentOrder.Status == string(utils.Processed) {
-//		// возвращаем текущее состояние
-//		response.Status = currentOrder.Status
-//		if currentOrder.Accrual.Valid {
-//			response.Accrual = &(currentOrder.Accrual.Float64)
-//		}
-//	} else { // дергаем внещний сервис
-//		// TEST
-//		// h.configs.AccrualSystemAddress = "http://localhost:8080"
-//
-//		url := fmt.Sprintf(`%s/api/orders/%s`, h.configs.AccrualSystemAddress, orderNumber)
-//		externalResp, err := h.externalHTTPClient.Get(url)
-//
-//		if err != nil {
-//			if errors.Is(err, context.DeadlineExceeded) {
-//				log.Println("ContextDeadlineExceeded: true")
-//			}
-//
-//			http.Error(w, err.Error(), http.StatusInternalServerError)
-//			return
-//		}
-//		defer externalResp.Body.Close()
-//
-//		if externalResp.StatusCode == http.StatusOK { // есть ответ от сервиса
-//			b, err := io.ReadAll(externalResp.Body)
-//			if err != nil {
-//				http.Error(w, err.Error(), http.StatusInternalServerError)
-//				return
-//			}
-//
-//			exrr := externalAPIResponse{}
-//
-//			if err = json.Unmarshal(b, &exrr); err != nil {
-//				http.Error(w, "Incorrect external body JSON format", http.StatusBadRequest)
-//				return
-//			} else {
-//				if currentOrder.Status != exrr.Status {
-//					response.Status = exrr.Status
-//
-//					var accr *float64
-//					if exrr.Accrual != nil {
-//						accr = exrr.Accrual
-//						response.Accrual = exrr.Accrual
-//					}
-//
-//					err = h.gm.UpdateOrder(orderNumber, exrr.Status, accr)
-//					if err != nil {
-//						http.Error(w, err.Error(), http.StatusInternalServerError)
-//						return
-//					}
-//				} else {
-//					// возвращаем текущий
-//					response.Status = currentOrder.Status
-//					if currentOrder.Accrual.Valid {
-//						response.Accrual = &(currentOrder.Accrual.Float64)
-//					}
-//				}
-//			}
-//
-//		} else if externalResp.StatusCode == http.StatusTooManyRequests {
-//			http.Error(w, "No more than N requests per minute allowed", http.StatusTooManyRequests)
-//			return
-//		} else {
-//			http.Error(w, "server error", http.StatusInternalServerError)
-//			return
-//		}
-//	}
-//
-//	resp, err := json.Marshal(response)
-//	if err != nil {
-//		http.Error(w, err.Error(), http.StatusInternalServerError)
-//		return
-//	}
-//
-//	w.WriteHeader(http.StatusOK)
-//	w.Write(resp)
-//}
 
 func getUserLogin(r *http.Request) string {
 	return fmt.Sprint(r.Context().Value(utils.KeyPrincipalID))

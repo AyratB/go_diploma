@@ -31,7 +31,7 @@ func NewListener(ctx context.Context, handler *handlers.Handler, wg *sync.WaitGr
 		processedOrders:   handler.ProcessedOrders,
 		wg:                wg,
 		retryNumber:       5,
-		externalClient:    handler.HttpClient,
+		externalClient:    handler.HTTPClient,
 		externalAPIURL:    handler.Configs.AccrualSystemAddress + "/api/orders/{orderNumber}",
 	}
 }
@@ -90,21 +90,11 @@ func (l *Listener) processAsync() error {
 		if err != nil ||
 			(response != nil && sc != http.StatusTooManyRequests && sc != http.StatusOK) {
 
-			//if noProcessedOrder.RetryCount >= l.retryNumber {
-			//
-			//	l.processedOrders <- entities.OrderQueueEntry{
-			//		OrderNumber: noProcessedOrder.OrderNumber,
-			//		OrderStatus: noProcessedOrder.OrderStatus,
-			//		Accrual:     noProcessedOrder.Accrual,
-			//	}
-			//	continue
-			//} else {
 			noProcessedOrder.RetryCount += 1
 			noProcessedOrder.LastChecked = time.Now()
 
 			l.noProcessedOrders <- noProcessedOrder
 			continue
-			//}
 		}
 
 		if sc == http.StatusTooManyRequests {

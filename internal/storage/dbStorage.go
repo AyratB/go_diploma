@@ -70,6 +70,7 @@ func NewDBStorage(ctx context.Context, dsn string, wg *sync.WaitGroup) (dbStorag
 		for processedOrder := range dbStorage.ProcessedOrders {
 			error = dbStorage.UpdateOrder(ctx, processedOrder.OrderNumber, processedOrder.OrderStatus, processedOrder.Accrual)
 			if error != nil {
+				return
 			}
 		}
 	}()
