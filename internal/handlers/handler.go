@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,9 @@ import (
 	"github.com/AyratB/go_diploma/internal/storage"
 	"github.com/AyratB/go_diploma/internal/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-resty/resty/v2"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -20,7 +23,24 @@ type Handler struct {
 	configs            *utils.Config
 	gm                 *app.Gofermart
 	externalHTTPClient http.Client
+
+	restyClient *resty.Client
 }
+
+//func (h Handler) GetAccrual(ctx context.Context, orderNumber int) (*resty.Response, error) {
+//	response, err := h.restyClient.
+//		R().
+//		SetContext(ctx).
+//		SetPathParams(map[string]string{
+//			"orderNumber": string(orderNumber),
+//		}).
+//		Get(h.configs.AccrualSystemAddress + "/api/orders/{orderNumber}")
+//
+//	if err != nil {
+//		return nil, err
+//	}
+//	return response, nil
+//}
 
 func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func() error, error) {
 
@@ -41,6 +61,8 @@ func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func()
 		gm:                 app.NewGofermart(repo, decoder),
 		configs:            configs,
 		externalHTTPClient: http.Client{},
+
+		restyClient: resty.New(),
 	}, repo.CloseResources, nil
 }
 
@@ -408,6 +430,7 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+	w.Header().Set("content-type", "application/json")
 
 	var err error
 
@@ -453,8 +476,6 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		Order: orderNumber,
 	}
 
-	w.Header().Set("content-type", "application/json")
-
 	// если уже обработано - что делаем?
 	if currentOrder.Status == string(utils.Invalid) || currentOrder.Status == string(utils.Processed) {
 		// возвращаем текущее состояние
@@ -468,7 +489,12 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 
 		url := fmt.Sprintf(`%s/api/orders/%s`, h.configs.AccrualSystemAddress, orderNumber)
 		externalResp, err := h.externalHTTPClient.Get(url)
+
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Println("ContextDeadlineExceeded: true")
+			}
+
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
