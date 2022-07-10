@@ -27,12 +27,27 @@ type Handler struct {
 	restyClient *resty.Client
 }
 
+//func (h Handler) GetAccrual(ctx context.Context, orderNumber int) (*resty.Response, error) {
+//	response, err := h.restyClient.
+//		R().
+//		SetContext(ctx).
+//		SetPathParams(map[string]string{
+//			"orderNumber": string(orderNumber),
+//		}).
+//		Get(h.configs.AccrualSystemAddress + "/api/orders/{orderNumber}")
+//
+//	if err != nil {
+//		return nil, err
+//	}
+//	return response, nil
+//}
+
 func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func() error, error) {
 
 	// TODO - comment only when local
-	if len(configs.DatabaseURI) == 0 {
-		return nil, nil, errors.New("need Database URI")
-	}
+	//if len(configs.DatabaseURI) == 0 {
+	//return nil, nil, errors.New("need Database URI")
+	//}
 
 	// test local connection
 	// configs.DatabaseURI = "postgres://postgres:test@localhost:5432/postgres?sslmode=disable"
@@ -292,7 +307,7 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(userOrders) == 0 {
-		http.Error(w, "no users order", http.StatusNoContent)
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -311,7 +326,6 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 		}
 
 		responseOrders = append(responseOrders, responseOrder)
-
 	}
 
 	resp, err := json.Marshal(responseOrders)
@@ -381,7 +395,10 @@ func (h Handler) GetUserBalanceDecreases(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if len(userWithdrawals) == 0 {
-		http.Error(w, "no user withdrawals", http.StatusNoContent)
+		//http.Error(w, "no user withdrawals", http.StatusNoContent)
+		//return
+
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
