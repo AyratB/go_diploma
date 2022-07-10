@@ -23,8 +23,8 @@ func GetConfigs() *Config {
 		flag.StringVar(&config.DatabaseURI, "d", "", "db storage path")
 	}
 	config.AccrualSystemAddress = os.Getenv("ACCRUAL_SYSTEM_ADDRESS")
-	if len(config.DatabaseURI) == 0 {
-		flag.StringVar(&config.DatabaseURI, "r", "localhost:8080", "accrual system address")
+	if len(config.AccrualSystemAddress) == 0 {
+		flag.StringVar(&config.AccrualSystemAddress, "r", "", "accrual system address")
 	}
 
 	flag.Parse()
