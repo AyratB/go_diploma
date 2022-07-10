@@ -13,5 +13,4 @@ type Repository interface {
 	GetUserBalance(userLogin string) (*entities.UserBalance, error)
 	DecreaseBalance(userLogin, order string, sum float32) error
 	GetUserWithdrawals(userLogin string) ([]entities.UserWithdrawal, error)
-	UpdateOrder(number, status string, accrual *float64) error
 }

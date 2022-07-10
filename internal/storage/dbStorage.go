@@ -10,39 +10,109 @@ import (
 	"github.com/AyratB/go_diploma/internal/utils"
 	"github.com/jackc/pgerrcode"
 	"github.com/lib/pq"
+	"sync"
 	"time"
 )
 
 type DBStorage struct {
 	DB *sql.DB
+	mu sync.Mutex
+
+	// список заказов на обработку
+	NoProcessedOrders chan entities.OrderQueueEntry
+	ProcessedOrders   chan entities.OrderQueueEntry
 }
 
-func NewDBStorage(dsn string) (*DBStorage, error) {
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return nil, err
+func NewDBStorage(ctx context.Context, dsn string, wg *sync.WaitGroup) (dbStorage *DBStorage, error error) {
+	db, error := sql.Open("postgres", dsn)
+	if error != nil {
+		return
 	}
 
-	dbStorage := &DBStorage{DB: db}
-
-	if err = dbStorage.initTables(); err != nil {
-		return nil, err
+	dbStorage = &DBStorage{
+		DB:                db,
+		NoProcessedOrders: make(chan entities.OrderQueueEntry),
+		ProcessedOrders:   make(chan entities.OrderQueueEntry),
 	}
+
+	error = dbStorage.initTables(ctx)
+	if error != nil {
+		return
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		noProcessedOrders, error := dbStorage.getNoProcessedOrders(ctx)
+		if error != nil {
+			return
+		}
+
+		for _, noProcessedOrder := range noProcessedOrders {
+			dbStorage.NoProcessedOrders <- entities.OrderQueueEntry{
+				OrderNumber: noProcessedOrder.Number,
+				OrderStatus: noProcessedOrder.Status,
+			}
+		}
+
+		<-ctx.Done()
+		error = dbStorage.DB.Close()
+		if error != nil {
+			return
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for processedOrder := range dbStorage.ProcessedOrders {
+			error = dbStorage.UpdateOrder(ctx, processedOrder.OrderNumber, processedOrder.OrderStatus, processedOrder.Accrual)
+			if error != nil {
+			}
+		}
+	}()
 
 	return dbStorage, nil
 }
 
+func (d *DBStorage) getNoProcessedOrders(ctx context.Context) ([]entities.OrderEntity, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	rows, err := d.DB.QueryContext(ctx, `
+SELECT order_number, status, accrual, uploaded_at 
+FROM orders 
+WHERE status NOT IN ($1, $2)`, utils.Processed, utils.Invalid)
+
+	if err != nil {
+		return nil, err
+	}
+	if rows.Err() != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	orders := make([]entities.OrderEntity, 0)
+
+	for rows.Next() {
+		var order entities.OrderEntity
+		if err = rows.
+			Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt); err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+	return orders, nil
+}
+
 func (d *DBStorage) CloseResources() error {
-	//if upStmt != nil {
-	//	upStmt.Close()
-	//}
 	return d.DB.Close()
 }
 
-func (d *DBStorage) initTables() error {
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func (d *DBStorage) initTables(ctx context.Context) error {
 
 	initQuery := `
  		CREATE TABLE IF NOT EXISTS users (
@@ -77,6 +147,8 @@ func (d *DBStorage) initTables() error {
 }
 
 func (d *DBStorage) RegisterUser(login, password string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -100,6 +172,8 @@ func (d *DBStorage) RegisterUser(login, password string) error {
 }
 
 func (d *DBStorage) LoginUser(login, password string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	var isUserExist bool
 
@@ -119,6 +193,8 @@ func (d *DBStorage) LoginUser(login, password string) error {
 }
 
 func (d *DBStorage) CheckOrderExists(orderNumber string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -146,6 +222,8 @@ WHERE o.order_number = $1`, orderNumber).Scan(&existingOrderUserLogin)
 }
 
 func (d *DBStorage) SaveOrder(orderNumber, userLogin string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -318,9 +396,9 @@ func (d *DBStorage) GetUserWithdrawals(userLogin string) ([]entities.UserWithdra
 	return userWithdrawals, nil
 }
 
-func (d *DBStorage) UpdateOrder(number, status string, accrual *float64) error {
+func (d *DBStorage) UpdateOrder(ctx context.Context, number, status string, accrual *float64) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	updateResult, err := d.DB.ExecContext(ctx,

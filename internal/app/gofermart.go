@@ -80,6 +80,7 @@ func (g Gofermart) GetUserWithdrawals(userLogin string) ([]entities.UserWithdraw
 	return userWithdrawals, err
 }
 
-func (g Gofermart) UpdateOrder(orderNumber, status string, accrual *float64) error {
-	return g.repo.UpdateOrder(orderNumber, status, accrual)
-}
+//
+//func (g Gofermart) UpdateOrder(orderNumber, status string, accrual *float64) error {
+//	return g.repo.UpdateOrder(orderNumber, status, accrual)
+//}

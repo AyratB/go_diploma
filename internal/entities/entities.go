@@ -22,3 +22,12 @@ type UserWithdrawal struct {
 	Sum         float32
 	ProcessedAt time.Time
 }
+
+type OrderQueueEntry struct {
+	OrderNumber string
+	OrderStatus string
+	RetryCount  int
+	Accrual     *float64
+	LastChecked time.Time
+	RetryAfter  time.Duration
+}

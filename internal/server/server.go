@@ -1,15 +1,18 @@
 package server
 
 import (
+	"context"
 	"github.com/AyratB/go_diploma/internal/handlers"
 	"github.com/AyratB/go_diploma/internal/middlewares"
+	"github.com/AyratB/go_diploma/internal/service/listener"
 	"github.com/AyratB/go_diploma/internal/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"net/http"
+	"sync"
 )
 
-func Run(configs *utils.Config) (func() error, error) {
+func Run(configs *utils.Config, ctx context.Context) (func() error, error) {
 
 	r := chi.NewRouter()
 
@@ -24,22 +27,26 @@ func Run(configs *utils.Config) (func() error, error) {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	handler, resourcesCloser, err := handlers.NewHandler(configs, decoder)
+	wg := &sync.WaitGroup{}
+
+	handler, resourcesCloser, err := handlers.NewHandler(ctx, configs, decoder, wg)
 	if err != nil {
 		return resourcesCloser, err
 	}
 
+	listener := listener.NewListener(ctx, handler, wg)
+	listener.ListenAndProcess()
+
 	r.Route("/", func(r chi.Router) {
 		r.Post("/api/user/register", handler.RegisterUser)
 		r.Post("/api/user/login", handler.LoginUser)
-		r.Get("/api/orders/{number}", handler.GetOrdersPoints)
+		//r.Get("/api/orders/{number}", handler.GetOrdersPoints)
 
 		// эти запросы закрыты для неавторизованных пользователей
 		r.Post("/api/user/orders", handler.LoadUserOrders)
 		r.Get("/api/user/orders", handler.GetUserOrders)
 		r.Get("/api/user/balance", handler.GetUserBalance)
 		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
-		//r.Get("/api/user/balance/withdrawals", handler.GetUserBalanceDecreases)
 		r.Get("/api/user/withdrawals", handler.GetUserBalanceDecreases)
 	})
 	return resourcesCloser, http.ListenAndServe(configs.RunAddress, r)
