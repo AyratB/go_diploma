@@ -27,21 +27,6 @@ type Handler struct {
 	restyClient *resty.Client
 }
 
-//func (h Handler) GetAccrual(ctx context.Context, orderNumber int) (*resty.Response, error) {
-//	response, err := h.restyClient.
-//		R().
-//		SetContext(ctx).
-//		SetPathParams(map[string]string{
-//			"orderNumber": string(orderNumber),
-//		}).
-//		Get(h.configs.AccrualSystemAddress + "/api/orders/{orderNumber}")
-//
-//	if err != nil {
-//		return nil, err
-//	}
-//	return response, nil
-//}
-
 func NewHandler(configs *utils.Config, decoder *utils.Decoder) (*Handler, func() error, error) {
 
 	// TODO - comment only when local
@@ -299,6 +284,7 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only GET requests are allowed by this route!", http.StatusMethodNotAllowed)
 		return
 	}
+	w.Header().Set("content-type", "application/json")
 
 	userOrders, err := h.gm.GetUserOrders(getUserLogin(r))
 	if err != nil {
@@ -327,8 +313,6 @@ func (h Handler) GetUserOrders(w http.ResponseWriter, r *http.Request) {
 		responseOrders = append(responseOrders, responseOrder)
 
 	}
-
-	w.Header().Set("content-type", "application/json")
 
 	resp, err := json.Marshal(responseOrders)
 	if err != nil {
