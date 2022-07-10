@@ -453,6 +453,8 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 		Order: orderNumber,
 	}
 
+	w.Header().Set("content-type", "application/json")
+
 	// если уже обработано - что делаем?
 	if currentOrder.Status == string(utils.Invalid) || currentOrder.Status == string(utils.Processed) {
 		// возвращаем текущее состояние
@@ -516,8 +518,6 @@ func (h Handler) GetOrdersPoints(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	w.Header().Set("content-type", "application/json")
 
 	resp, err := json.Marshal(response)
 	if err != nil {
