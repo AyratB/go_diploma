@@ -13,13 +13,7 @@ func main() {
 
 	configs := utils.GetConfigs()
 
-	resourcesCloser, err := server.Run(configs, ctx)
-	defer func() {
-		if resourcesCloser != nil {
-			resourcesCloser()
-		}
-	}()
-
+	err := server.Run(configs, ctx)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -109,10 +109,6 @@ WHERE status NOT IN ($1, $2)`, utils.Processed, utils.Invalid)
 	return orders, nil
 }
 
-func (d *DBStorage) CloseResources() error {
-	return d.DB.Close()
-}
-
 func (d *DBStorage) initTables(ctx context.Context) error {
 
 	initQuery := `

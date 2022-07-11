@@ -12,7 +12,7 @@ import (
 	"sync"
 )
 
-func Run(configs *utils.Config, ctx context.Context) (func() error, error) {
+func Run(configs *utils.Config, ctx context.Context) error {
 
 	r := chi.NewRouter()
 
@@ -29,9 +29,9 @@ func Run(configs *utils.Config, ctx context.Context) (func() error, error) {
 
 	wg := &sync.WaitGroup{}
 
-	handler, resourcesCloser, err := handlers.NewHandler(ctx, configs, decoder, wg)
+	handler, err := handlers.NewHandler(ctx, configs, decoder, wg)
 	if err != nil {
-		return resourcesCloser, err
+		return err
 	}
 
 	listener := listener.NewListener(ctx, handler, wg)
@@ -49,5 +49,5 @@ func Run(configs *utils.Config, ctx context.Context) (func() error, error) {
 		r.Post("/api/user/balance/withdraw", handler.DecreaseBalance)
 		r.Get("/api/user/withdrawals", handler.GetUserBalanceDecreases)
 	})
-	return resourcesCloser, http.ListenAndServe(configs.RunAddress, r)
+	return http.ListenAndServe(configs.RunAddress, r)
 }

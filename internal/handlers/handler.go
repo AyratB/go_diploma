@@ -27,11 +27,11 @@ type Handler struct {
 	NoProcessedOrders  chan entities.OrderQueueEntry
 }
 
-func NewHandler(ctx context.Context, configs *utils.Config, decoder *utils.Decoder, wg *sync.WaitGroup) (*Handler, func() error, error) {
+func NewHandler(ctx context.Context, configs *utils.Config, decoder *utils.Decoder, wg *sync.WaitGroup) (*Handler, error) {
 
 	// TODO - comment only when local
 	if len(configs.DatabaseURI) == 0 {
-		return nil, nil, errors.New("need Database URI")
+		return nil, errors.New("need Database URI")
 	}
 
 	// test local connection
@@ -39,7 +39,7 @@ func NewHandler(ctx context.Context, configs *utils.Config, decoder *utils.Decod
 
 	repo, err := storage.NewDBStorage(ctx, configs.DatabaseURI, wg)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	return &Handler{
@@ -48,7 +48,7 @@ func NewHandler(ctx context.Context, configs *utils.Config, decoder *utils.Decod
 		HTTPClient:        resty.New(),
 		ProcessedOrders:   repo.ProcessedOrders,
 		NoProcessedOrders: repo.NoProcessedOrders,
-	}, repo.CloseResources, nil
+	}, nil
 }
 
 type registerOrLoginRequest struct {
